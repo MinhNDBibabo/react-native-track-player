@@ -6,6 +6,7 @@ import android.util.Log;
 import androidx.annotation.NonNull;
 import com.facebook.react.bridge.Promise;
 import com.google.android.exoplayer2.*;
+import com.google.android.exoplayer2.Player.EventListener;
 import com.google.android.exoplayer2.Timeline.Window;
 import com.google.android.exoplayer2.metadata.Metadata;
 import com.google.android.exoplayer2.metadata.MetadataOutput;
@@ -16,8 +17,6 @@ import com.guichaguri.trackplayer.service.MusicManager;
 import com.guichaguri.trackplayer.service.Utils;
 import com.guichaguri.trackplayer.service.models.Track;
 
-import org.jetbrains.annotations.NotNull;
-
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -27,7 +26,7 @@ import java.util.Objects;
 /**
  * @author Guichaguri
  */
-public abstract class ExoPlayback<T extends ExoPlayer> implements ExoPlayer.Listener, MetadataOutput {
+public abstract class ExoPlayback<T extends Player> implements EventListener, MetadataOutput {
 
     protected final Context context;
     protected final MusicManager manager;
@@ -48,8 +47,7 @@ public abstract class ExoPlayback<T extends ExoPlayer> implements ExoPlayer.List
         this.player = player;
         this.autoUpdateMetadata = autoUpdateMetadata;
 
-
-        ExoPlayer.MetadataComponent component = player.getMetadataComponent();
+        Player.MetadataComponent component = player.getMetadataComponent();
         if(component != null) component.addMetadataOutput(this);
     }
 
@@ -147,7 +145,7 @@ public abstract class ExoPlayback<T extends ExoPlayer> implements ExoPlayer.List
         lastKnownWindow = player.getCurrentWindowIndex();
         lastKnownPosition = player.getCurrentPosition();
 
-        player.stop(false);
+        player.stop();
         player.setPlayWhenReady(false);
         player.seekTo(lastKnownWindow,0);
     }
@@ -156,7 +154,8 @@ public abstract class ExoPlayback<T extends ExoPlayer> implements ExoPlayer.List
         lastKnownWindow = player.getCurrentWindowIndex();
         lastKnownPosition = player.getCurrentPosition();
 
-        player.stop(true);
+        player.stop();
+        player.clearMediaItems();
         player.setPlayWhenReady(false);
     }
 
@@ -242,13 +241,13 @@ public abstract class ExoPlayback<T extends ExoPlayer> implements ExoPlayer.List
     public void onTimelineChanged(@NonNull Timeline timeline, int reason) {
         Log.d(Utils.LOG, "onTimelineChanged: " + reason);
 
-        if((reason == Player.TIMELINE_CHANGE_REASON_PLAYLIST_CHANGED || reason == Player.TIMELINE_CHANGE_REASON_SOURCE_UPDATE) && !timeline.isEmpty()) {
+        if((reason == Player.TIMELINE_CHANGE_REASON_SOURCE_UPDATE || reason == Player.TIMELINE_CHANGE_REASON_PLAYLIST_CHANGED) && !timeline.isEmpty()) {
             onPositionDiscontinuity(Player.DISCONTINUITY_REASON_INTERNAL);
         }
     }
 
     @Override
-    public void onPositionDiscontinuity(@NotNull Player.PositionInfo oldPosition, @NotNull Player.PositionInfo newPosition, int reason) {
+    public void onPositionDiscontinuity(int reason) {
         Log.d(Utils.LOG, "onPositionDiscontinuity: " + reason);
 
         if(lastKnownWindow != player.getCurrentWindowIndex()) {
@@ -257,15 +256,15 @@ public abstract class ExoPlayback<T extends ExoPlayer> implements ExoPlayer.List
             Track next = nextIndex == null ? null : queue.get(nextIndex);
 
             // Track changed because it ended
-            // We'll useits  duration instead of the last known position
-//            if (reason == Player.DISCONTINUITY_REASON_PERIOD_TRANSITION && lastKnownWindow != C.INDEX_UNSET) {
-//                if (lastKnownWindow >= player.getCurrentTimeline().getWindowCount()) return;
-//                long duration = player.getCurrentTimeline().getWindow(lastKnownWindow, new Window()).getDurationMs();
-//                if(duration != C.TIME_UNSET) lastKnownPosition = duration;
-//            }
+            // We'll use its duration instead of the last known position
+            if (reason == Player.DISCONTINUITY_REASON_PERIOD_TRANSITION && lastKnownWindow != C.INDEX_UNSET) {
+                if (lastKnownWindow >= player.getCurrentTimeline().getWindowCount()) return;
+                long duration = player.getCurrentTimeline().getWindow(lastKnownWindow, new Window()).getDurationMs();
+                if(duration != C.TIME_UNSET) lastKnownPosition = duration;
+            }
 
-            manager.onTrackUpdate(prevIndex, newPosition.positionMs, nextIndex, next);
-        } else if (reason == Player.DISCONTINUITY_REASON_AUTO_TRANSITION && lastKnownWindow == player.getCurrentWindowIndex()) {
+            manager.onTrackUpdate(prevIndex, lastKnownPosition, nextIndex, next);
+        } else if (reason == Player.DISCONTINUITY_REASON_PERIOD_TRANSITION && lastKnownWindow == player.getCurrentWindowIndex()) {
             Integer nextIndex = getCurrentTrackIndex();
             Track next = nextIndex == null ? null : queue.get(nextIndex);
 
@@ -330,6 +329,7 @@ public abstract class ExoPlayback<T extends ExoPlayer> implements ExoPlayer.List
         }
     }
 
+    @Override
     public void onPlayerError(ExoPlaybackException error) {
         String code;
 
@@ -347,11 +347,6 @@ public abstract class ExoPlayback<T extends ExoPlayer> implements ExoPlayer.List
     @Override
     public void onPlaybackParametersChanged(@NonNull PlaybackParameters playbackParameters) {
         // Speed or pitch changes
-    }
-
-    @Override
-    public void onSeekProcessed() {
-        // Finished seeking
     }
 
     @Override

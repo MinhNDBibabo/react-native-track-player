@@ -57,13 +57,14 @@ public class LocalPlayback extends ExoPlayback<SimpleExoPlayer> {
     public DataSource.Factory enableCaching(DataSource.Factory ds) {
         if(cache == null || cacheMaxSize <= 0) return ds;
 
-        return new CacheDataSourceFactory(cache, ds, CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR);
+        return new CacheDataSource.Factory();
     }
 
     private void prepare() {
         if(!prepared) {
             Log.d(Utils.LOG, "Preparing the media source...");
-            player.prepare(source, false, false);
+            player.setMediaSource(source, false);
+            player.prepare();
             prepared = true;
         }
     }
@@ -147,7 +148,8 @@ public class LocalPlayback extends ExoPlayback<SimpleExoPlayer> {
         queue.clear();
 
         source = new ConcatenatingMediaSource();
-        player.prepare(source, true, true);
+        player.setMediaSource(source, true);
+        player.prepare();
         prepared = false; // We set it to false as the queue is now empty
 
         lastKnownWindow = C.INDEX_UNSET;
@@ -196,12 +198,19 @@ public class LocalPlayback extends ExoPlayback<SimpleExoPlayer> {
     }
 
     @Override
-    public void onPlayerStateChanged(boolean playWhenReady, int playbackState) {
+    public void onPlaybackStateChanged(int playbackState) {
         if(playbackState == Player.STATE_ENDED) {
             prepared = false;
         }
 
-        super.onPlayerStateChanged(playWhenReady, playbackState);
+        super.onPlaybackStateChanged(playbackState);
+    }
+
+    @Override
+    public void onPlayWhenReadyChanged(boolean playWhenReady, int reason) {
+        if(reason == Player.PLAY_WHEN_READY_CHANGE_REASON_END_OF_MEDIA_ITEM) {
+            prepared = false;
+        }
     }
 
     @Override
