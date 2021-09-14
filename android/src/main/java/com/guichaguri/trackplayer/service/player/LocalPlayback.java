@@ -2,7 +2,6 @@ package com.guichaguri.trackplayer.service.player;
 
 import android.content.Context;
 import android.util.Log;
-
 import com.facebook.react.bridge.Promise;
 import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.ExoPlaybackException;
@@ -14,17 +13,14 @@ import com.google.android.exoplayer2.source.ConcatenatingMediaSource;
 import com.google.android.exoplayer2.source.MediaSource;
 import com.google.android.exoplayer2.upstream.DataSource;
 import com.google.android.exoplayer2.upstream.cache.CacheDataSource;
+import com.google.android.exoplayer2.upstream.cache.CacheDataSourceFactory;
 import com.google.android.exoplayer2.upstream.cache.LeastRecentlyUsedCacheEvictor;
 import com.google.android.exoplayer2.upstream.cache.SimpleCache;
 import com.guichaguri.trackplayer.service.MusicManager;
 import com.guichaguri.trackplayer.service.Utils;
 import com.guichaguri.trackplayer.service.models.Track;
-
 import java.io.File;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
+import java.util.*;
 
 /**
  * @author Guichaguri
@@ -61,14 +57,13 @@ public class LocalPlayback extends ExoPlayback<SimpleExoPlayer> {
     public DataSource.Factory enableCaching(DataSource.Factory ds) {
         if(cache == null || cacheMaxSize <= 0) return ds;
 
-        return new CacheDataSource.Factory();
+        return new CacheDataSourceFactory(cache, ds, CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR);
     }
 
     private void prepare() {
         if(!prepared) {
             Log.d(Utils.LOG, "Preparing the media source...");
-            player.setMediaSource(source, false);
-            player.prepare();
+            player.prepare(source, false, false);
             prepared = true;
         }
     }
@@ -152,8 +147,7 @@ public class LocalPlayback extends ExoPlayback<SimpleExoPlayer> {
         queue.clear();
 
         source = new ConcatenatingMediaSource();
-        player.setMediaSource(source, true);
-        player.prepare();
+        player.prepare(source, true, true);
         prepared = false; // We set it to false as the queue is now empty
 
         lastKnownWindow = C.INDEX_UNSET;
@@ -202,19 +196,12 @@ public class LocalPlayback extends ExoPlayback<SimpleExoPlayer> {
     }
 
     @Override
-    public void onPlaybackStateChanged(int playbackState) {
+    public void onPlayerStateChanged(boolean playWhenReady, int playbackState) {
         if(playbackState == Player.STATE_ENDED) {
             prepared = false;
         }
 
-        super.onPlaybackStateChanged(playbackState);
-    }
-
-    @Override
-    public void onPlayWhenReadyChanged(boolean playWhenReady, int reason) {
-        if(reason == Player.PLAY_WHEN_READY_CHANGE_REASON_END_OF_MEDIA_ITEM) {
-            prepared = false;
-        }
+        super.onPlayerStateChanged(playWhenReady, playbackState);
     }
 
     @Override

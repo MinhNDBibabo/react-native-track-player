@@ -17,5 +17,5 @@ public class NowPlayingMetadata extends TrackMetadata {
 
         elapsedTime = bundle.getDouble("elapsedTime", 0);
     }
-    
+
 }
