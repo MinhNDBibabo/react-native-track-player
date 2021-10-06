@@ -292,6 +292,7 @@ public class RNTrackPlayer: RCTEventEmitter {
         self.player.stop()
         self.player.nowPlayingInfoController.clear()
         try? AVAudioSession.sharedInstance().setActive(false)
+        hasInitialized = false
     }
 
     @objc(updateOptions:resolver:rejecter:)
@@ -478,7 +479,7 @@ public class RNTrackPlayer: RCTEventEmitter {
             let track = player.items[index.intValue]
             resolve((track as? Track)?.toObject())
         } else {
-            resolve(nil)
+            resolve(NSNull())
         }
     }
 
@@ -491,9 +492,12 @@ public class RNTrackPlayer: RCTEventEmitter {
     @objc(getCurrentTrack:rejecter:)
     public func getCurrentTrack(resolve: RCTPromiseResolveBlock, reject: RCTPromiseRejectBlock) {
         let index = player.currentIndex
-        let adjustedIndex = index < 0 || index >= player.items.count ? nil : index;
 
-        resolve(adjustedIndex)
+        if index < 0 || index >= player.items.count {
+            resolve(NSNull())
+        } else {
+            resolve(index)
+        }
     }
 
     @objc(getDuration:rejecter:)
